@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Heal Urban Agent - Workspace Prototyper</title>
+  <meta name="description" content="An autonomous design co-designer agent that simulates UHI heat mitigation, green canopy coverage, surface permeability, and pedestrian paths.">
+  <!-- Google Fonts: Outfit and Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-area">
+        <div class="logo-icon"></div>
+        <div class="logo-text">
+          <h1>Heal Urban Agent</h1>
+          <span class="logo-sub">GPS Singapore Prototyper Sandbox</span>
+        </div>
+      </div>
+      <div class="gps-search-container">
+        <input type="text" id="gpsSearchInput" placeholder="GPS Search District (e.g. Tampines, Punggol, Jurong)...">
+        <button id="btnGpsSearch" class="btn btn-primary btn-gps">Locate</button>
+      </div>
+      <div class="system-status">
+        <span class="status-dot status-idle" id="statusDot"></span>
+        <span class="status-text" id="statusText">System Idle</span>
+      </div>
+    </header>
+
+    <div class="main-layout">
+      <!-- Left Sidebar: Directives & Variables -->
+      <aside class="panel sidebar scrollbar-custom">
+        <div class="panel-section">
+          <h2 class="section-title">1. Site Location</h2>
+          <div class="input-group">
+            <label for="districtSelect">Active Singapore District</label>
+            <select id="districtSelect">
+              <option value="tampines" selected>Tampines (East)</option>
+              <option value="punggol">Punggol (Northeast)</option>
+              <option value="jurong">Jurong West (West)</option>
+              <option value="downtown">Downtown Core (South)</option>
+            </select>
+          </div>
+          <p class="section-intro" id="districtDemographics">Loading localized demographic values...</p>
+        </div>
+
+        <div class="panel-section">
+          <h2 class="section-title">2. Global Parameters</h2>
+          
+          <div class="slider-block">
+            <div class="slider-label">
+              <span>Target Canopy Density</span>
+              <span id="canopy-val">40%</span>
+            </div>
+            <input type="range" id="slider-canopy" min="10" max="80" value="40">
+          </div>
+
+          <div class="slider-block">
+            <div class="slider-label">
+              <span>Permeability Threshold</span>
+              <span id="perm-val">60%</span>
+            </div>
+            <input type="range" id="slider-perm" min="20" max="100" value="60">
+          </div>
+        </div>
+
+        <div class="panel-section">
+          <h2 class="section-title">3. Paintbrush Tool</h2>
+          <div class="brush-grid">
+            <button class="btn btn-secondary brush-btn active" data-brush="green">🌳 Eco Tree</button>
+            <button class="btn btn-secondary brush-btn" data-brush="concrete">🏢 Concrete Block</button>
+            <button class="btn btn-secondary brush-btn" data-brush="road">🛣️ Road Asphalt</button>
+            <button class="btn btn-secondary brush-btn" data-brush="park">⛲ Pocket Park</button>
+            <button class="btn btn-secondary brush-btn" data-brush="path">🚶 Permeable Path</button>
+            <button class="btn btn-secondary brush-btn" data-brush="soil">🟫 Soil (Eraser)</button>
+          </div>
+        </div>
+
+        <div class="panel-section operations-section" style="margin-top: auto;">
+          <button class="btn btn-primary" id="btnRunHeal" style="width: 100%; margin-bottom: 8px;">
+            ⚡ Run Agent Optimization
+          </button>
+          <button class="btn btn-secondary" id="btnResetGrid" style="width: 100%;">
+            Reset Sandbox Grid
+          </button>
+        </div>
+      </aside>
+
+      <!-- Center Sandbox Area & Chat Console -->
+      <main class="center-content">
+        <div class="visualizer-card">
+          <div class="visualizer-header">
+            <div class="viewport-title">Urban Grid Sandbox Viewport</div>
+            <div class="visualizer-controls">
+              <div class="toggle-group-labels">Visual Overlays:</div>
+              <div class="btn-group">
+                <button class="btn btn-overlay active" data-overlay="none">Base</button>
+                <button class="btn btn-overlay" data-overlay="solar" id="toggleSolar">UHI Heatmap</button>
+                <button class="btn btn-overlay" data-overlay="wind" id="toggleWind">Wind Currents</button>
+              </div>
+              <div class="btn-group">
+                <button class="btn btn-view active" id="viewPerspective">2.5D Ortho</button>
+                <button class="btn btn-view" id="viewTopDown">2D Plan</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="canvas-container" id="canvasContainer">
+            <canvas id="canvas3d"></canvas>
+            
+            <!-- Target Hover Tooltip -->
+            <div class="block-tooltip hidden" id="blockTooltip">
+              <div class="tooltip-header" id="tooltipBlockName">Cell Coordinates (0,0)</div>
+              <div class="tooltip-grid">
+                <div class="tooltip-metric">Type: <strong id="ttType">Soil</strong></div>
+                <div class="tooltip-metric">Permeability: <strong id="ttPerm">100%</strong></div>
+                <div class="tooltip-metric">UHI Index: <strong id="ttUhi">Baseline</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Conversational Chat Interface -->
+        <div class="chat-card">
+          <div class="chat-header">
+            <div class="chat-agent-title">AI Autonomous Co-Designer Console</div>
+            <div class="chat-agent-status">dynamic antigravity engine connected</div>
+          </div>
+          <div class="chat-history scrollbar-custom" id="chatHistory">
+            <div class="chat-message agent-msg">
+              <p>Welcome! Draw buildings, roads, and soils on the grid. Run the optimizer to let me automatically place trees, pocket parks, and permeable paths to heal UHI hotspots and build connected walkways. Or simply instruct me in chat!</p>
+            </div>
+          </div>
+          <form class="chat-input-area" id="chatInputForm">
+            <input type="text" id="chatInput" placeholder="Ask agent to alter design, e.g. 'add trees next to buildings' or 'clear grid'...">
+            <button type="submit" id="btnSendChat" class="btn btn-primary">Submit Instruction</button>
+          </form>
+        </div>
+      </main>
+
+      <!-- Right Summary Metrics Sidebar -->
+      <aside class="panel right-panel scrollbar-custom">
+        <!-- 4-Layer progress timeline -->
+        <div class="panel-section pipeline-section">
+          <h2 class="section-title">4-Layer Agent Pipeline</h2>
+          <div class="pipeline-timeline">
+            <!-- Layer 1 -->
+            <div class="pipeline-card" id="layerCard1">
+              <div class="pipeline-header">
+                <span class="pipeline-dot" id="layerDot1"></span>
+                <span class="pipeline-layer-num">Layer 1</span>
+                <span class="pipeline-title">Data Ingestion</span>
+              </div>
+              <div class="pipeline-desc">Reads grid configurations, demographics, and regional weather.</div>
+            </div>
+
+            <!-- Layer 2 -->
+            <div class="pipeline-card" id="layerCard2">
+              <div class="pipeline-header">
+                <span class="pipeline-dot" id="layerDot2"></span>
+                <span class="pipeline-layer-num">Layer 2</span>
+                <span class="pipeline-title">Structural Analysis</span>
+              </div>
+              <div class="pipeline-desc">Analyzes zoning height limits and permeability thresholds.</div>
+            </div>
+
+            <!-- Layer 3 -->
+            <div class="pipeline-card" id="layerCard3">
+              <div class="pipeline-header">
+                <span class="pipeline-dot" id="layerDot3"></span>
+                <span class="pipeline-layer-num">Layer 3</span>
+                <span class="pipeline-title">Microclimate & CFD</span>
+              </div>
+              <div class="pipeline-desc">Simulates UHI thermal offsets and pedestrian circulation connectivity.</div>
+            </div>
+
+            <!-- Layer 4 -->
+            <div class="pipeline-card" id="layerCard4">
+              <div class="pipeline-header">
+                <span class="pipeline-dot" id="layerDot4"></span>
+                <span class="pipeline-layer-num">Layer 4</span>
+                <span class="pipeline-title">Synthesis & Dignity</span>
+              </div>
+              <div class="pipeline-desc">Compiles the scorecard report and renders optimal placements.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Metrics Sidebar -->
+        <div class="panel-section scores-section">
+          <h2 class="section-title">Live Summary Metrics</h2>
+          
+          <div class="fitness-indicator">
+            <svg class="progress-ring" width="100" height="100">
+              <circle class="progress-ring-circle-bg" stroke="rgba(255,255,255,0.05)" stroke-width="6" fill="transparent" r="42" cx="50" cy="50"/>
+              <circle class="progress-ring-circle" id="fitnessRing" stroke="#4ade80" stroke-width="6" stroke-dasharray="263.89" stroke-dashoffset="263.89" fill="transparent" r="42" cx="50" cy="50"/>
+            </svg>
+            <div class="fitness-label">
+              <span id="fitnessScore" style="font-size: 20px;">0%</span>
+              <span class="fit-sub" style="font-size: 7px;">Design Fitness</span>
+            </div>
+          </div>
+
+          <div class="metric-card" style="width:100%; margin-bottom: 12px;">
+            <h4>Heat Reduction Index</h4>
+            <div class="val" id="m-heat" style="color: var(--accent-orange);">0.0°C</div>
+            <small style="font-size: 8px; color: var(--text-muted);">UHI Mitigation Target: &ge; -3.0°C</small>
+          </div>
+
+          <div class="metric-card" style="width:100%;">
+            <h4>Green Cover Density</h4>
+            <div class="val" id="m-green" style="color: var(--accent-green);">0%</div>
+            <small style="font-size: 8px; color: var(--text-muted); display: block;" id="m-green-limit">Target Limit: 40%</small>
+          </div>
+        </div>
+
+        <!-- Extra Metrics: Permeability & Connectivity -->
+        <div class="panel-section extra-metrics-section">
+          <h2 class="section-title">Detailed Analytics</h2>
+          <div class="kpi-bars">
+            <div class="kpi-item">
+              <div class="kpi-meta">
+                <span>Surface Permeability (SPR)</span>
+                <span id="kpiPermVal">0%</span>
+              </div>
+              <div class="kpi-track"><div class="kpi-fill kpi-density" id="kpiPermBar" style="width: 0%; background-color: var(--accent-green);"></div></div>
+            </div>
+            <div class="kpi-item">
+              <div class="kpi-meta">
+                <span>Pedestrian Connectivity</span>
+                <span id="kpiConnectVal">0%</span>
+              </div>
+              <div class="kpi-track"><div class="kpi-fill kpi-airflow" id="kpiConnectBar" style="width: 0%; background-color: #60a5fa;"></div></div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Inline Asynchronous JavaScript Engine Module -->
+  <script type="module">
+    import { DISTRICT_PRESETS, TILE_TYPES } from './src/data.js';
+    import { calculatePrecinctMetrics, runAgentHeal, processChatCommand } from './src/generative.js';
+    import { drawSandbox, getTileIndexAtPoint } from './src/visualizer.js';
+
+    // State Variables
+    let state = {
+      grid: Array(100).fill(0), // 10x10 Grid
+      activeDistrictId: 'tampines',
+      currentBrush: 'green', // default Eco Tree
+      targetCanopy: 40,
+      targetPerm: 60,
+      overlayMode: 'none',
+      is2D: false,
+      isMouseDown: false,
+      hoveredIndex: null,
+      pipelineRunning: false
+    };
+
+    // UI Links
+    const canvas = document.getElementById('canvas3d');
+    const statusDot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+    const districtSelect = document.getElementById('districtSelect');
+    const districtDemographics = document.getElementById('districtDemographics');
+    const canopyVal = document.getElementById('canopy-val');
+    const sliderCanopy = document.getElementById('slider-canopy');
+    const permVal = document.getElementById('perm-val');
+    const sliderPerm = document.getElementById('slider-perm');
+    const btnRunHeal = document.getElementById('btnRunHeal');
+    const btnResetGrid = document.getElementById('btnResetGrid');
+
+    // Overlays & Projection UI
+    const overlays = document.querySelectorAll('.btn-overlay');
+    const btnViewPerspective = document.getElementById('viewPerspective');
+    const btnViewTopDown = document.getElementById('viewTopDown');
+    const gpsSearchInput = document.getElementById('gpsSearchInput');
+    const btnGpsSearch = document.getElementById('btnGpsSearch');
+
+    // Pipeline timeline cards
+    const layerCards = [
+      { card: document.getElementById('layerCard1'), dot: document.getElementById('layerDot1') },
+      { card: document.getElementById('layerCard2'), dot: document.getElementById('layerDot2') },
+      { card: document.getElementById('layerCard3'), dot: document.getElementById('layerDot3') },
+      { card: document.getElementById('layerCard4'), dot: document.getElementById('layerDot4') }
+    ];
+
+    // Helper functions
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    function setSystemStatus(type, label) {
+      statusDot.className = `status-dot status-${type}`;
+      statusText.textContent = label;
+    }
+
+    // Load District Preset Grid
+    function loadDistrict(id) {
+      state.activeDistrictId = id;
+      const preset = DISTRICT_PRESETS[id];
+      if (!preset) return;
+
+      state.grid = [...preset.grid];
+      districtDemographics.textContent = preset.demographics;
+      districtSelect.value = id;
+      gpsSearchInput.value = preset.name;
+
+      recalculateAndDraw();
+    }
+
+    // Refresh Sidebar stats & circular progress
+    function recalculateAndDraw() {
+      const stats = calculatePrecinctMetrics(state.grid, state.targetCanopy, state.targetPerm);
+
+      // Fitness Dial Score
+      document.getElementById('fitnessScore').textContent = `${stats.fitness}%`;
+      const radius = 42;
+      const circumference = 2 * Math.PI * radius;
+      const offset = circumference - (stats.fitness / 100) * circumference;
+      const ring = document.getElementById('fitnessRing');
+      ring.style.strokeDashoffset = offset;
+
+      // Color indicator
+      if (stats.fitness >= 75) ring.style.stroke = 'var(--accent-green)';
+      else if (stats.fitness >= 45) ring.style.stroke = 'var(--accent-orange)';
+      else ring.style.stroke = 'var(--color-danger)';
+
+      // Directives
+      document.getElementById('m-green-limit').textContent = `Target Limit: ${state.targetCanopy}%`;
+
+      // Live metrics values
+      document.getElementById('m-heat').textContent = `-${stats.uhiOffset.toFixed(1)}°C`;
+      document.getElementById('m-green').textContent = `${stats.greenDensity}%`;
+      
+      if (stats.greenDensity >= state.targetCanopy) {
+        document.getElementById('m-green').style.color = 'var(--accent-green)';
+      } else {
+        document.getElementById('m-green').style.color = 'var(--accent-orange)';
+      }
+
+      // Detailed bars
+      document.getElementById('kpiPermVal').textContent = `${stats.sprRatio}%`;
+      document.getElementById('kpiPermBar').style.width = `${stats.sprRatio}%`;
+      document.getElementById('kpiConnectVal').textContent = `${stats.connectivity}%`;
+      document.getElementById('kpiConnectBar').style.width = `${stats.connectivity}%`;
+
+      // Draw sandbox
+      drawSandbox(canvas, state.grid, state.overlayMode, state.is2D, state.mousePos, state.hoveredIndex);
+    }
+
+    // Paint cells based on brush tool
+    function paintCell(index) {
+      if (index === null || index < 0 || index >= state.grid.length) return;
+      
+      let typeCode = 0;
+      switch (state.currentBrush) {
+        case 'green': typeCode = 2; break; // Tree 🌳
+        case 'concrete': typeCode = 1; break; // Building 🏢
+        case 'road': typeCode = 3; break; // Road 🛣️
+        case 'park': typeCode = 4; break; // Park ⛲
+        case 'path': typeCode = 5; break; // Path 🚶
+        case 'soil': typeCode = 0; break; // Soil (Eraser) 🟫
+      }
+
+      state.grid[index] = typeCode;
+      recalculateAndDraw();
+    }
+
+    // ASYNCHRONOUS AGENT SOLVER IMPLEMENTATION
+    async function asyncAgentOptimization() {
+      if (state.pipelineRunning) return;
+      state.pipelineRunning = true;
+      setSystemStatus('running', 'Running Pipeline');
+
+      // Clear layers highlights
+      layerCards.forEach(item => {
+        item.card.classList.remove('active', 'completed');
+        item.dot.className = 'pipeline-dot';
+      });
+
+      // Layer 1: Ingestion
+      addChatLine("[INGEST] Layer 1: Accessing sandbox coordinates grid. Scanning structural cell allocations.", 'system-line');
+      layerCards[0].card.classList.add('active');
+      layerCards[0].dot.className = 'pipeline-dot active';
+      await sleep(700);
+      layerCards[0].card.classList.remove('active');
+      layerCards[0].card.classList.add('completed');
+      layerCards[0].dot.className = 'pipeline-dot completed';
+
+      // Layer 2: Analysis
+      addChatLine("[ANALYZE] Layer 2: Cross-referencing against design directives (Canopy & Permeability thresholds).", 'system-line');
+      layerCards[1].card.classList.add('active');
+      layerCards[1].dot.className = 'pipeline-dot active';
+      await sleep(700);
+      layerCards[1].card.classList.remove('active');
+      layerCards[1].card.classList.add('completed');
+      layerCards[1].dot.className = 'pipeline-dot completed';
+
+      // Layer 3: Olfactory & Microclimate Simulations (Animate Placements)
+      addChatLine("[SIMULATE] Layer 3: Running microclimate thermal and circulation diagnostics...", 'system-line');
+      layerCards[2].card.classList.add('active');
+      layerCards[2].dot.className = 'pipeline-dot active';
+
+      // Process optimal locations asynchronously step-by-step
+      let placementsCount = 0;
+      for (let r = 0; r < 10; r++) {
+        for (let c = 0; c < 10; c++) {
+          const idx = r * 10 + c;
+          if (state.grid[idx] === 0 && placementsCount < 8) { // Empty soil
+            // Check adjacent concrete buildings or roads
+            let nearConcrete = false;
+            const neighbors = [idx - 1, idx + 1, idx - 10, idx + 10];
+            neighbors.forEach(n => {
+              if (n >= 0 && n < 100 && state.grid[n] === 1) nearConcrete = true;
+            });
+
+            if (nearConcrete) {
+              state.grid[idx] = 2; // Plant tree for shading
+              placementsCount++;
+              addChatLine(`[PROPOSE] Planted Eco Tree 🌳 at coordinate [${r}, ${c}] to shade concrete building facade.`, 'thought-line');
+              recalculateAndDraw();
+              await sleep(250); // Pause to animate placements dynamically!
+            }
+          }
+        }
+      }
+
+      layerCards[2].card.classList.remove('active');
+      layerCards[2].card.classList.add('completed');
+      layerCards[2].dot.className = 'pipeline-dot completed';
+
+      // Layer 4: Synthesis
+      addChatLine("[SYNTHESIS] Layer 4: Finalizing HEAL Synthesis & Human Dignity Scorecard.", 'system-line');
+      layerCards[3].card.classList.add('active');
+      layerCards[3].dot.className = 'pipeline-dot active';
+      await sleep(600);
+      layerCards[3].card.classList.remove('active');
+      layerCards[3].card.classList.add('completed');
+      layerCards[3].dot.className = 'pipeline-dot completed';
+
+      addChatLine("[COMPLETE] Sector healed successfully. UHI offset reduced. Design Fitness optimized.", 'observation-line');
+      appendChatMessage("Finished autonomous optimization. I've placed shading canopies around your concrete structure hotspots.", 'agent-msg');
+
+      setSystemStatus('complete', 'Sector Optimized');
+      state.pipelineRunning = false;
+    }
+
+    // Chat command submissions logger
+    function addChatLine(text, className) {
+      const history = document.getElementById('chatHistory');
+      const wrapper = document.createElement('div');
+      wrapper.className = `chat-message agent-msg`;
+      const p = document.createElement('p');
+      p.className = className;
+      p.textContent = text;
+      wrapper.appendChild(p);
+      history.appendChild(wrapper);
+      history.scrollTop = history.scrollHeight;
+    }
+
+    function appendChatMessage(text, className) {
+      const history = document.getElementById('chatHistory');
+      const wrapper = document.createElement('div');
+      wrapper.className = `chat-message ${className}`;
+      const p = document.createElement('p');
+      p.textContent = text;
+      wrapper.appendChild(p);
+      history.appendChild(wrapper);
+      history.scrollTop = history.scrollHeight;
+    }
+
+    // Set up listeners
+    function setupEventListeners() {
+      // District select presets
+      districtSelect.addEventListener('change', (e) => loadDistrict(e.target.value));
+
+      // Sliders
+      sliderCanopy.addEventListener('input', (e) => {
+        state.targetCanopy = parseInt(e.target.value);
+        canopyVal.textContent = `${state.targetCanopy}%`;
+        recalculateAndDraw();
+      });
+
+      sliderPerm.addEventListener('input', (e) => {
+        state.targetPerm = parseInt(e.target.value);
+        permVal.textContent = `${state.targetPerm}%`;
+        recalculateAndDraw();
+      });
+
+      // Brush Selection
+      const brushButtons = document.querySelectorAll('.brush-btn');
+      brushButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          brushButtons.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          state.currentBrush = btn.dataset.brush;
+        });
+      });
+
+      // Map view toggles
+      btnViewPerspective.addEventListener('click', () => {
+        state.is2D = false;
+        btnViewPerspective.classList.add('active');
+        btnViewTopDown.classList.remove('active');
+        recalculateAndDraw();
+      });
+
+      btnViewTopDown.addEventListener('click', () => {
+        state.is2D = true;
+        btnViewTopDown.classList.add('active');
+        btnViewPerspective.classList.remove('active');
+        recalculateAndDraw();
+      });
+
+      // Overlays
+      overlays.forEach(btn => {
+        btn.addEventListener('click', () => {
+          overlays.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          state.overlayMode = btn.dataset.overlay;
+          recalculateAndDraw();
+        });
+      });
+
+      // Trigger buttons
+      btnRunHeal.addEventListener('click', () => asyncAgentOptimization());
+      
+      btnResetGrid.addEventListener('click', () => {
+        state.grid.fill(0);
+        addChatLine("[SYSTEM] Grid cleared to soil. Awaiting directives.", 'system-line');
+        recalculateAndDraw();
+      });
+
+      // GPS Search District
+      btnGpsSearch.addEventListener('click', () => {
+        const q = gpsSearchInput.value.trim().toLowerCase();
+        let matched = null;
+        if (q.includes("punggol")) matched = "punggol";
+        else if (q.includes("jurong")) matched = "jurong";
+        else if (q.includes("downtown") || q.includes("core")) matched = "downtown";
+        else matched = "tampines";
+
+        loadDistrict(matched);
+      });
+
+      gpsSearchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') btnGpsSearch.click();
+      });
+
+      // Canvas Mouse Painting click/drag bind
+      canvas.addEventListener('mousedown', (e) => {
+        state.isMouseDown = true;
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const idx = getTileIndexAtPoint(mouseX, mouseY, canvas.width, canvas.height, state.is2D);
+        paintCell(idx);
+      });
+
+      canvas.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const idx = getTileIndexAtPoint(mouseX, mouseY, canvas.width, canvas.height, state.is2D);
+        
+        state.hoveredIndex = idx;
+        
+        if (state.isMouseDown) {
+          paintCell(idx);
+        } else {
+          // Tooltip details update
+          if (idx !== null && idx >= 0 && idx < 100) {
+            const blockTooltip = document.getElementById('blockTooltip');
+            blockTooltip.classList.remove('hidden');
+            blockTooltip.style.left = `${mouseX + 15}px`;
+            blockTooltip.style.top = `${mouseY + 15}px`;
+            
+            const typeVal = state.grid[idx];
+            let typeLabel = "Soil";
+            let typePerm = "100%";
+            let typeUhi = "Baseline";
+
+            if (typeVal === 1) { typeLabel = "Concrete Block"; typePerm = "0%"; typeUhi = "+13.0°C"; }
+            else if (typeVal === 2) { typeLabel = "Eco Tree"; typePerm = "95%"; typeUhi = "-5.2°C shade"; }
+            else if (typeVal === 3) { typeLabel = "Road Asphalt"; typePerm = "5%"; typeUhi = "+10.0°C"; }
+            else if (typeVal === 4) { typeLabel = "Pocket Park"; typePerm = "90%"; typeUhi = "-4.0°C cool"; }
+            else if (typeVal === 5) { typeLabel = "Permeable Path"; typePerm = "85%"; typeUhi = "-2.0°C"; }
+
+            document.getElementById('tooltipBlockName').textContent = `Cell Coordinate [${Math.floor(idx/10)}, ${idx%10}]`;
+            document.getElementById('ttType').textContent = typeLabel;
+            document.getElementById('ttPerm').textContent = typePerm;
+            document.getElementById('ttUhi').textContent = typeUhi;
+          } else {
+            document.getElementById('blockTooltip').classList.add('hidden');
+          }
+        }
+        recalculateAndDraw();
+      });
+
+      window.addEventListener('mouseup', () => {
+        state.isMouseDown = false;
+      });
+
+      canvas.addEventListener('mouseleave', () => {
+        document.getElementById('blockTooltip').classList.add('hidden');
+      });
+
+      // Chat console submission
+      document.getElementById('chatInputForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const input = document.getElementById('chatInput');
+        const q = input.value.trim();
+        if (!q) return;
+
+        appendChatMessage(q, 'user-msg');
+        input.value = '';
+
+        setSystemStatus('running', 'Agent reasoning');
+        setTimeout(() => {
+          const result = processChatCommand(q, state.grid, state.targetCanopy, state.targetPerm);
+          
+          state.grid = result.grid;
+          state.targetCanopy = result.targetCanopy;
+          state.targetPerm = result.targetPerm;
+
+          sliderCanopy.value = state.targetCanopy;
+          canopyVal.textContent = `${state.targetCanopy}%`;
+          sliderPerm.value = state.targetPerm;
+          permVal.textContent = `${state.targetPerm}%`;
+
+          result.logs.forEach(log => {
+            let className = 'system-line';
+            if (log.includes('[PROPOSE]')) className = 'thought-line';
+            else if (log.includes('[COMPLETE]')) className = 'observation-line';
+            addChatLine(log, className);
+          });
+
+          appendChatMessage(result.response, 'agent-msg');
+          recalculateAndDraw();
+          setSystemStatus('complete', 'Design Adjusted');
+        }, 500);
+      });
+
+      // Resize
+      window.addEventListener('resize', () => recalculateAndDraw());
+    }
+
+    // Launch initial setup
+    window.onload = () => {
+      loadDistrict('tampines');
+      setupEventListeners();
+      
+      // Continuous 60fps render loop trigger for fluid vector overlays
+      function tick() {
+        if (state.overlayMode === 'wind') {
+          recalculateAndDraw();
+        }
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    };
+  </script>
+</body>
+</html>

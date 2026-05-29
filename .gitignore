@@ -1,0 +1,14 @@
+# Node modules
+node_modules/
+
+# Local build output
+dist/
+dist-ssr/
+*.local
+
+# System/IDE logs
+.idea/
+.vscode/
+*.log
+.DS_Store
+package-lock.json
