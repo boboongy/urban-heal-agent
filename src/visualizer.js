@@ -62,15 +62,15 @@ export function getTileIndexAtPoint(px, py, width, height, is2D) {
 }
 
 // Master Sandbox Render
-export function drawSandbox(canvas, grid, overlayMode, is2D, mousePos = null, hoveredIdx = null) {
+export function drawSandbox(canvas, grid, overlayMode, is2D, mousePos = null, hoveredIdx = null, heights = []) {
   const ctx = canvas.getContext('2d');
   const w = canvas.width = canvas.parentElement.clientWidth;
   const h = canvas.height = canvas.parentElement.clientHeight;
 
   if (animFrameId) cancelAnimationFrame(animFrameId);
 
-  // Dark background
-  ctx.fillStyle = '#12141c';
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = 'rgba(18, 20, 28, 0.30)';
   ctx.fillRect(0, 0, w, h);
 
   // 1. Draw Grid Cells & Land Base
@@ -118,7 +118,9 @@ export function drawSandbox(canvas, grid, overlayMode, is2D, mousePos = null, ho
 
         // If Concrete Building (1), draw rising tower block
         if (type === 1) {
-          drawBuilding3D(ctx, coords, cellW, cellH, 35, isHover);
+          const heightMeters = heights[idx] || 30;
+          const visualHeight = Math.max(20, Math.min(88, heightMeters * 1.4));
+          drawBuilding3D(ctx, coords, cellW, cellH, visualHeight, isHover, heightMeters);
         }
         // If Eco Tree (2), draw 3D Sphere canopy
         else if (type === 2) {
@@ -149,19 +151,19 @@ export function drawSandbox(canvas, grid, overlayMode, is2D, mousePos = null, ho
   windOffset += 0.8;
 
   if (overlayMode === 'wind') {
-    animFrameId = requestAnimationFrame(() => drawSandbox(canvas, grid, overlayMode, is2D, mousePos, hoveredIdx));
+    animFrameId = requestAnimationFrame(() => drawSandbox(canvas, grid, overlayMode, is2D, mousePos, hoveredIdx, heights));
   }
 }
 
 // 2D cell colors
 function get2DColor(type) {
   switch (type) {
-    case 1: return 'rgba(30, 41, 59, 0.7)'; // Concrete Building
-    case 2: return 'rgba(74, 222, 128, 0.15)'; // Eco Tree
-    case 3: return 'rgba(15, 23, 42, 0.9)'; // Asphalt Road
-    case 4: return 'rgba(16, 185, 129, 0.2)'; // Pocket Park
-    case 5: return 'rgba(20, 184, 166, 0.15)'; // Permeable Path
-    default: return 'rgba(255, 255, 255, 0.015)'; // Soil
+    case 1: return 'rgba(30, 41, 59, 0.62)'; // Concrete Building
+    case 2: return 'rgba(34, 197, 94, 0.34)'; // Eco Tree
+    case 3: return 'rgba(15, 23, 42, 0.74)'; // Asphalt Road
+    case 4: return 'rgba(16, 185, 129, 0.30)'; // Pocket Park
+    case 5: return 'rgba(20, 184, 166, 0.26)'; // Permeable Path
+    default: return 'rgba(255, 255, 255, 0.035)'; // Soil
   }
 }
 
@@ -185,7 +187,7 @@ function drawEmoji(ctx, type, x, y, size) {
 }
 
 // Render 2.5D Building Blocks
-function drawBuilding3D(ctx, baseCoords, cellW, cellH, height, isHover) {
+function drawBuilding3D(ctx, baseCoords, cellW, cellH, height, isHover, heightMeters = 30) {
   const tL = { x: baseCoords.x - cellW, y: baseCoords.y + cellH - height };
   const tC = { x: baseCoords.x, y: baseCoords.y - height };
   const tR = { x: baseCoords.x + cellW, y: baseCoords.y + cellH - height };
@@ -224,6 +226,13 @@ function drawBuilding3D(ctx, baseCoords, cellW, cellH, height, isHover) {
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
+
+  if (heightMeters >= 45) {
+    ctx.fillStyle = 'rgba(248, 250, 252, 0.78)';
+    ctx.font = '8px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${Math.round(heightMeters)}m`, tC.x, tC.y - 5);
+  }
 }
 
 // Render 2.5D Tree model

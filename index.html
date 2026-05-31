@@ -41,7 +41,18 @@
           <div class="input-group">
             <label for="districtSelect">Active Singapore District</label>
             <select id="districtSelect">
-              <option value="tampines" selected>Tampines (East)</option>
+              <option value="tampines">Tampines (East)</option>
+              <option value="toapayoh" selected>Toa Payoh (Central)</option>
+              <option value="amk">Ang Mo Kio (Central)</option>
+              <option value="bishan">Bishan (Central)</option>
+              <option value="queenstown">Queenstown (Southwest)</option>
+              <option value="bedok">Bedok (East)</option>
+              <option value="woodlands">Woodlands (North)</option>
+              <option value="yishun">Yishun (North)</option>
+              <option value="hougang">Hougang (Northeast)</option>
+              <option value="clementi">Clementi (West)</option>
+              <option value="bukittimah">Bukit Timah (Central)</option>
+              <option value="marinabay">Marina Bay (Central)</option>
               <option value="punggol">Punggol (Northeast)</option>
               <option value="jurong">Jurong West (West)</option>
               <option value="downtown">Downtown Core (South)</option>
@@ -112,6 +123,14 @@
           </div>
 
           <div class="canvas-container" id="canvasContainer">
+            <iframe
+              id="mapFrame"
+              class="map-frame"
+              title="OpenStreetMap location preview"
+              loading="lazy"
+              referrerpolicy="no-referrer"
+            ></iframe>
+            <div class="map-source-pill" id="mapSourcePill">Loading map layer</div>
             <canvas id="canvas3d"></canvas>
             
             <!-- Target Hover Tooltip -->
@@ -134,11 +153,11 @@
           </div>
           <div class="chat-history scrollbar-custom" id="chatHistory">
             <div class="chat-message agent-msg">
-              <p>Welcome! Draw buildings, roads, and soils on the grid. Run the optimizer to let me automatically place trees, pocket parks, and permeable paths to heal UHI hotspots and build connected walkways. Or simply instruct me in chat!</p>
+              <p>Welcome! Ask about H.E.A.L., microclimate, odor mitigation, objective functions, production APIs, or tell me to analyze/optimize the active Singapore site.</p>
             </div>
           </div>
           <form class="chat-input-area" id="chatInputForm">
-            <input type="text" id="chatInput" placeholder="Ask agent to alter design, e.g. 'add trees next to buildings' or 'clear grid'...">
+            <input type="text" id="chatInput" placeholder="Ask about Advanced Microclimate & Odor Mitigation, Algorithmic Logic, Objective Function, 3D Data APIs, or H.E.A.L. workflow...">
             <button type="submit" id="btnSendChat" class="btn btn-primary">Submit Instruction</button>
           </form>
         </div>
@@ -246,14 +265,16 @@
 
   <!-- Inline Asynchronous JavaScript Engine Module -->
   <script type="module">
-    import { DISTRICT_PRESETS, TILE_TYPES } from './src/data.js';
+    import { DISTRICT_PRESETS, TILE_TYPES, GRID_SIZE } from './src/data.js';
     import { calculatePrecinctMetrics, runAgentHeal, processChatCommand } from './src/generative.js';
+    import { loadSingaporeContext, formatSingaporeContext } from './src/singaporeLayers.js';
     import { drawSandbox, getTileIndexAtPoint } from './src/visualizer.js';
 
     // State Variables
     let state = {
-      grid: Array(100).fill(0), // 10x10 Grid
-      activeDistrictId: 'tampines',
+      grid: Array(GRID_SIZE * GRID_SIZE).fill(0),
+      gridHeights: Array(GRID_SIZE * GRID_SIZE).fill(0),
+      activeDistrictId: 'toapayoh',
       currentBrush: 'green', // default Eco Tree
       targetCanopy: 40,
       targetPerm: 60,
@@ -261,7 +282,8 @@
       is2D: false,
       isMouseDown: false,
       hoveredIndex: null,
-      pipelineRunning: false
+      pipelineRunning: false,
+      singaporeContext: null
     };
 
     // UI Links
@@ -283,6 +305,8 @@
     const btnViewTopDown = document.getElementById('viewTopDown');
     const gpsSearchInput = document.getElementById('gpsSearchInput');
     const btnGpsSearch = document.getElementById('btnGpsSearch');
+    const mapFrame = document.getElementById('mapFrame');
+    const mapSourcePill = document.getElementById('mapSourcePill');
 
     // Pipeline timeline cards
     const layerCards = [
@@ -301,17 +325,45 @@
     }
 
     // Load District Preset Grid
-    function loadDistrict(id) {
+    async function loadDistrict(id) {
       state.activeDistrictId = id;
       const preset = DISTRICT_PRESETS[id];
       if (!preset) return;
 
       state.grid = [...preset.grid];
-      districtDemographics.textContent = preset.demographics;
+      state.gridHeights = Array(state.grid.length).fill(0);
+      districtDemographics.textContent = `${preset.demographics} | Loading Singapore data layer...`;
       districtSelect.value = id;
       gpsSearchInput.value = preset.name;
+      updateMapFrame(preset);
 
       recalculateAndDraw();
+
+      const context = await loadSingaporeContext(preset);
+      state.singaporeContext = context;
+      if (context.gridStatus === 'live' && Array.isArray(context.grid)) {
+        state.grid = [...context.grid];
+        state.gridHeights = Array.isArray(context.heights) ? [...context.heights] : Array(state.grid.length).fill(0);
+        recalculateAndDraw();
+      }
+      districtDemographics.textContent = `${preset.demographics} | ${formatSingaporeContext(preset, context)}`;
+      mapSourcePill.textContent = `${preset.planningArea}: ${context.gridStatus === 'live' ? 'Live OSM grid' : 'Mock grid'} + OSM map`;
+      addChatLine(`[DATA] Singapore context loaded for ${preset.name}: ${context.source}.`, context.status === 'live' ? 'observation-line' : 'system-line');
+    }
+
+    function updateMapFrame(preset) {
+      const { lat, lng } = preset.coordinates;
+      const radiusMeters = 750;
+      const latDelta = radiusMeters / 111320;
+      const lngDelta = radiusMeters / (111320 * Math.cos((lat * Math.PI) / 180));
+      const bbox = [
+        (lng - lngDelta).toFixed(5),
+        (lat - latDelta).toFixed(5),
+        (lng + lngDelta).toFixed(5),
+        (lat + latDelta).toFixed(5)
+      ].join(',');
+      mapFrame.src = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat.toFixed(5)},${lng.toFixed(5)}`;
+      mapSourcePill.textContent = `${preset.planningArea}: loading real map`;
     }
 
     // Refresh Sidebar stats & circular progress
@@ -351,7 +403,7 @@
       document.getElementById('kpiConnectBar').style.width = `${stats.connectivity}%`;
 
       // Draw sandbox
-      drawSandbox(canvas, state.grid, state.overlayMode, state.is2D, state.mousePos, state.hoveredIndex);
+      drawSandbox(canvas, state.grid, state.overlayMode, state.is2D, state.mousePos, state.hoveredIndex, state.gridHeights);
     }
 
     // Paint cells based on brush tool
@@ -369,6 +421,7 @@
       }
 
       state.grid[index] = typeCode;
+      state.gridHeights[index] = typeCode === 1 ? 30 : (typeCode === 2 ? 8 : 0);
       recalculateAndDraw();
     }
 
@@ -385,7 +438,9 @@
       });
 
       // Layer 1: Ingestion
-      addChatLine("[INGEST] Layer 1: Accessing sandbox coordinates grid. Scanning structural cell allocations.", 'system-line');
+      const preset = DISTRICT_PRESETS[state.activeDistrictId];
+      const contextSummary = state.singaporeContext ? formatSingaporeContext(preset, state.singaporeContext) : 'Singapore data layer pending';
+      addChatLine(`[INGEST] Layer 1: Accessing sandbox coordinates grid. ${contextSummary}.`, 'system-line');
       layerCards[0].card.classList.add('active');
       layerCards[0].dot.className = 'pipeline-dot active';
       await sleep(700);
@@ -409,19 +464,20 @@
 
       // Process optimal locations asynchronously step-by-step
       let placementsCount = 0;
-      for (let r = 0; r < 10; r++) {
-        for (let c = 0; c < 10; c++) {
-          const idx = r * 10 + c;
+      for (let r = 0; r < GRID_SIZE; r++) {
+        for (let c = 0; c < GRID_SIZE; c++) {
+          const idx = r * GRID_SIZE + c;
           if (state.grid[idx] === 0 && placementsCount < 8) { // Empty soil
             // Check adjacent concrete buildings or roads
             let nearConcrete = false;
-            const neighbors = [idx - 1, idx + 1, idx - 10, idx + 10];
+            const neighbors = [idx - 1, idx + 1, idx - GRID_SIZE, idx + GRID_SIZE];
             neighbors.forEach(n => {
-              if (n >= 0 && n < 100 && state.grid[n] === 1) nearConcrete = true;
+              if (n >= 0 && n < state.grid.length && state.grid[n] === 1) nearConcrete = true;
             });
 
             if (nearConcrete) {
               state.grid[idx] = 2; // Plant tree for shading
+              state.gridHeights[idx] = 8;
               placementsCount++;
               addChatLine(`[PROPOSE] Planted Eco Tree 🌳 at coordinate [${r}, ${c}] to shade concrete building facade.`, 'thought-line');
               recalculateAndDraw();
@@ -473,6 +529,249 @@
       wrapper.appendChild(p);
       history.appendChild(wrapper);
       history.scrollTop = history.scrollHeight;
+    }
+
+    function findDistrictId(query) {
+      const normalized = query.replace(/[^a-z0-9]/g, '');
+      return Object.entries(DISTRICT_PRESETS).find(([id, preset]) => {
+        const haystack = `${id} ${preset.name} ${preset.planningArea}`.toLowerCase().replace(/[^a-z0-9]/g, '');
+        return haystack.includes(normalized) || normalized.includes(id);
+      })?.[0] ?? null;
+    }
+
+    function getGridInsight() {
+      const stats = calculatePrecinctMetrics(state.grid, state.targetCanopy, state.targetPerm);
+      const hotspots = [];
+
+      state.grid.forEach((cell, idx) => {
+        if (cell !== 1 && cell !== 3) return;
+        const row = Math.floor(idx / GRID_SIZE);
+        const col = idx % GRID_SIZE;
+        const neighbors = [
+          idx - 1,
+          idx + 1,
+          idx - GRID_SIZE,
+          idx + GRID_SIZE
+        ].filter(n => n >= 0 && n < state.grid.length);
+        const hasCoolNeighbor = neighbors.some(n => state.grid[n] === 2 || state.grid[n] === 4);
+        if (!hasCoolNeighbor) hotspots.push(`[${row},${col}]`);
+      });
+
+      return {
+        stats,
+        hotspots: hotspots.slice(0, 8)
+      };
+    }
+
+    function generateAgentReply(text) {
+      const q = text.toLowerCase();
+      const preset = DISTRICT_PRESETS[state.activeDistrictId];
+      const context = state.singaporeContext;
+      const { stats, hotspots } = getGridInsight();
+      const has = (...terms) => terms.some(term => q.includes(term));
+
+      if (has('h.e.a.l', 'heal framework', 'four pillars', '4 pillars')) {
+        return {
+          response: `H.E.A.L. is the agent's planning logic: Health reduces heat, mold, odor and poor air quality; Ecology increases canopy, permeability and stormwater absorption; Access keeps walking paths, services and social spaces connected; Livability protects daylight, privacy, dignity and everyday comfort. For affordable housing, the point is not just more units per hectare, but density that still gives residents shade, airflow, safe circulation and humane shared space.`,
+          handled: true
+        };
+      }
+
+      if (has('microclimate and odor', 'microclimate and odour', 'advanced microclimate', 'odor mitigation', 'odour mitigation')) {
+        return {
+          response: `Advanced Microclimate & Odor Mitigation combines site wind, humidity, heat exposure and block geometry. For ${preset.planningArea}, I would check high-mass building cells, road heat, weak green buffers, corridor stagnation risk, chute-room placement, wet-core ventilation and whether wind paths are blocked. The design response is not only "add trees"; it is shade plus porosity, cross-ventilated corridors, separated odor sources, negative-pressure service rooms and permeable ground treatment.`,
+          handled: true
+        };
+      }
+
+      if (has('spatial engine', 'land scarcity', 'scarcity math')) {
+        return {
+          response: `The Spatial Engine treats land scarcity as a constrained optimization problem: maximize useful floor area and access while penalizing heat buildup, blocked wind paths, excessive impermeable surface, poor modular repeatability, and weak public-space quality. In this prototype the math is simplified into grid scores; in production it should consume parcel polygons, building envelopes, setbacks, GFA/GPR limits, transit access and 3D massing constraints.`,
+          handled: true
+        };
+      }
+
+      if (has('value proposition', 'city planning department', 'planning department')) {
+        return {
+          response: `The value proposition is fast option generation with evidence: a planning team can load a site, compare density/microclimate/livability tradeoffs, ask why a layout performs poorly, and receive geometry-aware interventions before committing to deeper design or CFD work. It turns policy, GIS and building-performance checks into an interactive review loop.`,
+          handled: true
+        };
+      }
+
+      if (has('human engine', 'mega-block', 'megablock', 'prison', 'unlivable')) {
+        return {
+          response: `The Human Engine protects dignity by penalizing layouts that become sealed mega-blocks: long stagnant corridors, deep units without cross-ventilation, poor daylight, no shaded social thresholds, weak wayfinding and isolated amenities. It pushes density into smaller legible clusters with breezeways, sky courts, shaded decks, active ground edges and green buffers.`,
+          handled: true
+        };
+      }
+
+      if (has('mold', 'mould')) {
+        return {
+          response: `For mold, the agent should look for humidity, low airflow and cold/hidden surfaces. Structural fixes include cross-ventilated unit stacks, less enclosed service yards, ventilated bathrooms, moisture-tolerant facade details, thermal-bridge reduction, clearer wet-zone exhaust paths and maintenance access for leaks. The app can flag high-risk blocks when humidity is high and the geometry has poor wind permeability.`,
+          handled: true
+        };
+      }
+
+      if (has('double-loaded', 'double loaded', 'stagnant odor', 'stagnant odour', 'corridor odor', 'corridor odour')) {
+        return {
+          response: `Double-loaded corridors trap odor because units line both sides of a deep internal hallway with limited pressure relief. A CFD-aware agent would break corridor length, add breezeways or voids, place exhaust risers away from return paths, align openings with prevailing winds, and avoid dead-end corridor pockets where humidity and smells accumulate.`,
+          handled: true
+        };
+      }
+
+      if (has('rubbish chute', 'trash chute', 'backdraft', 'foul smell', 'foul smells')) {
+        return {
+          response: `To prevent rubbish-chute backdraft, the agent should separate chute rooms from main corridors, keep them negatively pressurized, provide dedicated exhaust, use sealed fire-rated doors, avoid locating chute exhaust near residential intakes, and test stack-effect behavior across floors. Spatially, it should move odor sources away from lift lobbies and natural congregation points.`,
+          handled: true
+        };
+      }
+
+      if (has('floor trap', 'sewer gas', 'ppvc', 'plumbing')) {
+        return {
+          response: `For PPVC plumbing, the agent should keep wet cores stacked, reduce long horizontal waste runs, protect trap seals, include proper venting, avoid negative pressure that siphons traps, and separate foul-air risers from habitable ventilation paths. In layout scoring, poor wet-core alignment and corridor-facing service exhausts should subtract from health/livability fitness.`,
+          handled: true
+        };
+      }
+
+      if (has('objective function', 'fitness formula', 'design fitness equation')) {
+        return {
+          response: `The current prototype scores Design Fitness as a weighted blend of green density, surface permeability and pedestrian connectivity. The production version should be expressed as: Fitness = w1*density_efficiency + w2*microclimate_comfort + w3*modular_repeatability + w4*cost_efficiency - penalties. Penalties cover heat islands, odor risk, blocked airflow, low daylight/privacy, poor accessibility, excess cost and maintenance risk.`,
+          handled: true
+        };
+      }
+
+      if (has('algorithmic logic', 'algorithm logic')) {
+        return {
+          response: `Algorithmic Logic: ingest live map/building/weather context, classify each cell, compute heat/permeability/connectivity/height risks, generate interventions, score each variant, then explain the tradeoff. Objective Function: Fitness = w1*density_efficiency + w2*microclimate_comfort + w3*modular_repeatability + w4*cost_efficiency - penalties for heat, odor, blocked wind, low daylight/privacy, low permeability and poor access.`,
+          handled: true
+        };
+      }
+
+      if (has('3d data api', '3d data apis')) {
+        return {
+          response: `For 3D Data APIs, this prototype currently uses OSM building height/building:levels where available, then estimates missing heights. A production version should replace those estimates with OneMap/SLA 3D tiles or another authoritative building geometry source, plus URA constraints and parcel boundaries, so the canvas renders true site polygons and exact massing.`,
+          handled: true
+        };
+      }
+
+      if (has('w1', 'w2', 'w3', 'w4', 'weights', 'construction costs spike')) {
+        return {
+          response: `If construction costs spike, increase the cost-efficiency weight w4 and the penalty for non-repeatable custom elements. Lower-cost variants would then favor PPVC repetition, simpler cores, fewer transfer structures, standard spans and reusable facade modules, while still enforcing minimum thresholds for microclimate and human dignity so cost does not erase livability.`,
+          handled: true
+        };
+      }
+
+      if (has('subtracted', 'penalties', 'subtract from')) {
+        return {
+          response: `Variables subtracted from fitness should include excessive UHI exposure, stagnant corridor risk, odor-source proximity, low permeability, blocked wind corridors, poor daylight/privacy, weak walkability, non-repeatable modules, high embodied/construction cost and maintenance complexity. They are subtracted because a dense plan can look efficient while exporting hidden harm to residents.`,
+          handled: true
+        };
+      }
+
+      if (has('modular repeatability', 'repeatability')) {
+        return {
+          response: `Modular Repeatability measures how often the design reuses standardized unit, core, facade and PPVC module patterns. A high score means fewer unique module types, aligned wet walls, repeated structural bays, regular service risers and simple assembly logic; a low score means many custom pieces that raise cost and construction risk.`,
+          handled: true
+        };
+      }
+
+      if (has('production api', 'live data streams', 'api', 'cfd models')) {
+        return {
+          response: `Production data streams should include OneMap/SLA base maps and address search, authoritative land parcels and planning constraints, URA planning/land-use data, NEA/Data.gov.sg weather observations, wind/humidity/rainfall feeds, OSM or official road/path/green layers, and a 3D building source for massing/height. CFD should receive terrain, building polygons, height, porosity, openings, wind vectors, humidity and surface-material assumptions.`,
+          handled: true
+        };
+      }
+
+      if (has('onemap 3d', '3d building tiles', 'building tiles')) {
+        return {
+          response: `A production OneMap 3D building-tile integration would replace my estimated OSM heights with authoritative 3D massing: fetch the tile/building geometry for the selected site, decode footprints and height/level attributes, project them into the canvas coordinate system, then feed that volumetric mesh into solar, wind and corridor-risk analysis. This local prototype is ready for that shape of data, but does not yet have authenticated OneMap 3D tiles wired in.`,
+          handled: true
+        };
+      }
+
+      if (has('ura', 'ura data service', 'data layers')) {
+        return {
+          response: `URA layers should feed the regulatory side of the engine: planning area, land-use/zoning, plot ratio/GFA controls, conservation or height constraints where available, development boundaries and nearby amenities. The optimizer should treat those as hard constraints before proposing trees, paths, massing changes or density tradeoffs.`,
+          handled: true
+        };
+      }
+
+      if (has('4-step', 'four-step', 'operational blueprint', 'walk me through')) {
+        return {
+          response: `Operational blueprint: 1. Ingest site data: parcel, map geometry, weather, planning rules and existing buildings. 2. Analyze constraints: density, heat, airflow, odor, access, cost and modularity. 3. Optimize variants: generate layouts and score them against the H.E.A.L. objective. 4. Human review: planners ask for micro-adjustments, compare tradeoffs and select a defensible option.`,
+          handled: true
+        };
+      }
+
+      if (has('optimization phase', 'after the simulations')) {
+        return {
+          response: `After simulations, the optimizer ranks interventions by marginal benefit: shade the hottest pedestrian/building edges, open blocked airflow paths, improve corridor ventilation, move odor sources, increase permeability, and preserve modular repetition. It then updates the design, recalculates fitness and explains which penalties dropped.`,
+          handled: true
+        };
+      }
+
+      if (has('micro-adjustment', 'micro adjustment', 'prompt a planner')) {
+        return {
+          response: `Example planner prompts: "Increase canopy near the north-south pedestrian spine without reducing building cells", "raise cost weight and keep modular repeatability above 80%", "move odor-risk service cores away from lift lobbies", or "optimize Toa Payoh for mold risk under high humidity and low wind."`,
+          handled: true
+        };
+      }
+
+      if (has('volumetric', 'height', '3d geometry', 'exact height', 'coordinates')) {
+        const maxHeight = Math.max(...(state.gridHeights ?? [0]));
+        return {
+          response: `The sandbox now feeds OSM-derived building geometry into the canvas and uses height/building:levels tags where available. Untagged buildings are estimated at 30m, so this is volumetric prototype analysis, not yet exact HDB authority geometry. Current max loaded height for ${preset.planningArea} is ${Math.round(maxHeight)}m. For exact HDB/rental site geometry, the next production step is an authenticated official 3D building/parcel source.`,
+          handled: true
+        };
+      }
+
+      if (q.includes('source') || q.includes('data') || q.includes('real') || q.includes('accurate')) {
+        return {
+          response: `I am using ${context?.gridStatus === 'live' ? `${context.osmFeatureCount} OpenStreetMap features` : 'the fallback preset grid'} for the displayed grid, Data.gov.sg/NEA for weather, and an embedded OpenStreetMap view for visual location reference. This is planning-grade prototype data, not an official cadastral survey.`,
+          handled: true
+        };
+      }
+
+      if (q.includes('weather') || q.includes('temperature') || q.includes('wind') || q.includes('humidity')) {
+        return {
+          response: `${preset.planningArea} context: temperature ${context?.temperature ?? '--'}C, relative humidity ${context?.humidity ?? '--'}%, wind ${context?.windSpeed ?? '--'} m/s from nearest station ${context?.station ?? 'unavailable'}.`,
+          handled: true
+        };
+      }
+
+      if (q.includes('hotspot') || q.includes('risk') || q.includes('analyse') || q.includes('analyze')) {
+        return {
+          response: `Current ${preset.planningArea} analysis: ${stats.counts.concrete} building cells, ${stats.counts.road} road cells, ${stats.greenDensity}% green cover, ${stats.sprRatio}% permeability, and ${stats.fitness}% design fitness. Priority heat cells without nearby cooling: ${hotspots.length ? hotspots.join(', ') : 'none detected'}.`,
+          handled: true
+        };
+      }
+
+      if (q.includes('recommend') || q.includes('suggest') || q.includes('what should')) {
+        const firstHotspot = hotspots[0] ?? 'the highest road/building concentration';
+        return {
+          response: `Recommendation for ${preset.planningArea}: add shade trees around ${firstHotspot}, convert isolated soil beside roads into permeable paths, and preserve existing park/green cells. I would prioritize canopy first because the current green cover is ${stats.greenDensity}% against your ${state.targetCanopy}% target.`,
+          handled: true
+        };
+      }
+
+      if (q.includes('optimize') || q.includes('optimise') || q.includes('heal') || q.includes('run agent')) {
+        const previousGrid = [...state.grid];
+        const result = runAgentHeal(state.grid, state.targetCanopy, state.targetPerm);
+        state.grid = result.grid;
+        state.grid.forEach((cell, idx) => {
+          if (cell !== previousGrid[idx]) {
+            state.gridHeights[idx] = cell === 1 ? 30 : (cell === 2 ? 8 : 0);
+          }
+        });
+        result.logs.forEach(log => addChatLine(log, log.includes('[PROPOSE]') ? 'thought-line' : 'system-line'));
+        return {
+          response: `I optimized the active ${preset.planningArea} grid using the current real-data layer and your canopy/permeability targets. The updated design fitness is ${result.metrics.fitness}%.`,
+          handled: true,
+          changedGrid: true
+        };
+      }
+
+      return { handled: false };
     }
 
     // Set up listeners
@@ -533,6 +832,7 @@
       
       btnResetGrid.addEventListener('click', () => {
         state.grid.fill(0);
+        state.gridHeights.fill(0);
         addChatLine("[SYSTEM] Grid cleared to soil. Awaiting directives.", 'system-line');
         recalculateAndDraw();
       });
@@ -540,11 +840,7 @@
       // GPS Search District
       btnGpsSearch.addEventListener('click', () => {
         const q = gpsSearchInput.value.trim().toLowerCase();
-        let matched = null;
-        if (q.includes("punggol")) matched = "punggol";
-        else if (q.includes("jurong")) matched = "jurong";
-        else if (q.includes("downtown") || q.includes("core")) matched = "downtown";
-        else matched = "tampines";
+        const matched = findDistrictId(q) ?? "tampines";
 
         loadDistrict(matched);
       });
@@ -575,24 +871,25 @@
           paintCell(idx);
         } else {
           // Tooltip details update
-          if (idx !== null && idx >= 0 && idx < 100) {
+          if (idx !== null && idx >= 0 && idx < state.grid.length) {
             const blockTooltip = document.getElementById('blockTooltip');
             blockTooltip.classList.remove('hidden');
             blockTooltip.style.left = `${mouseX + 15}px`;
             blockTooltip.style.top = `${mouseY + 15}px`;
             
             const typeVal = state.grid[idx];
+            const heightVal = state.gridHeights[idx] || 0;
             let typeLabel = "Soil";
             let typePerm = "100%";
             let typeUhi = "Baseline";
 
-            if (typeVal === 1) { typeLabel = "Concrete Block"; typePerm = "0%"; typeUhi = "+13.0°C"; }
+            if (typeVal === 1) { typeLabel = heightVal ? `Concrete Block (${Math.round(heightVal)}m)` : "Concrete Block"; typePerm = "0%"; typeUhi = "+13.0°C"; }
             else if (typeVal === 2) { typeLabel = "Eco Tree"; typePerm = "95%"; typeUhi = "-5.2°C shade"; }
             else if (typeVal === 3) { typeLabel = "Road Asphalt"; typePerm = "5%"; typeUhi = "+10.0°C"; }
             else if (typeVal === 4) { typeLabel = "Pocket Park"; typePerm = "90%"; typeUhi = "-4.0°C cool"; }
             else if (typeVal === 5) { typeLabel = "Permeable Path"; typePerm = "85%"; typeUhi = "-2.0°C"; }
 
-            document.getElementById('tooltipBlockName').textContent = `Cell Coordinate [${Math.floor(idx/10)}, ${idx%10}]`;
+            document.getElementById('tooltipBlockName').textContent = `Cell Coordinate [${Math.floor(idx/GRID_SIZE)}, ${idx%GRID_SIZE}]`;
             document.getElementById('ttType').textContent = typeLabel;
             document.getElementById('ttPerm').textContent = typePerm;
             document.getElementById('ttUhi').textContent = typeUhi;
@@ -623,6 +920,22 @@
 
         setSystemStatus('running', 'Agent reasoning');
         setTimeout(() => {
+          const districtMatch = findDistrictId(q);
+          if (districtMatch && districtMatch !== state.activeDistrictId) {
+            loadDistrict(districtMatch);
+            appendChatMessage(`Switching to ${DISTRICT_PRESETS[districtMatch].name}. I will load its map, OSM grid, and live weather context now.`, 'agent-msg');
+            setSystemStatus('complete', 'District Loaded');
+            return;
+          }
+
+          const agentResult = generateAgentReply(q);
+          if (agentResult.handled) {
+            appendChatMessage(agentResult.response, 'agent-msg');
+            recalculateAndDraw();
+            setSystemStatus('complete', agentResult.changedGrid ? 'Design Optimized' : 'Agent Responded');
+            return;
+          }
+
           const result = processChatCommand(q, state.grid, state.targetCanopy, state.targetPerm);
           
           state.grid = result.grid;
@@ -653,7 +966,7 @@
 
     // Launch initial setup
     window.onload = () => {
-      loadDistrict('tampines');
+      loadDistrict('toapayoh');
       setupEventListeners();
       
       // Continuous 60fps render loop trigger for fluid vector overlays
