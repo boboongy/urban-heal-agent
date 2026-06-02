@@ -1,51 +1,69 @@
-# Heal Urban Agent
+# Urban Heal AI Agent 🌿🏙️
 
-An interactive grid sandbox paired with an autonomous design agent that simulates and optimizes green spaces, pocket parks, and permeable pathways to mitigate Urban Heat Island (UHI) effects and optimize pedestrian circulation.
+> **Inspiration:** Inspired by the **Singapore Urban Context Analysis AI Agent** framework, adapting advanced generative spatial workflows to tackle the global affordable housing crisis.
 
-## 🚀 Local Setup & Run
+**Urban Heal** is a generative co-designer AI agent engineered to address skyrocketing property values and the vanishing of affordable urban housing. Instead of acting as a passive software tool where a planner manually draws blocks and checks compliance, this agent ingests live urban data layers, legal constraints, and architectural components to autonomously simulate thousands of layout permutations—outputting the most optimized, buildable, and livable precinct blueprints.
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
-2. Start local development server:
-   ```bash
-   npm run dev
-   ```
+By using generative architecture rooted in real-world Singapore planning parameters, Urban Heal solves the brutal math of land scarcity while mathematically ensuring human dignity, safety, and healthy microclimates (mitigating critical high-density issues like stagnant corridor air, rubbish chute odors, and indoor mold).
 
 ---
 
-## 🌐 Deploying to GitHub Pages (Automated)
+## 🏗️ The H.E.A.L. Urban Optimization Framework
 
-We have configured a **GitHub Actions CI/CD pipeline** to automatically build and deploy this Vite project to GitHub Pages whenever you push code changes to the `main` branch.
+The agent’s generative capabilities are structured into four core pillars:
 
-### Deployment Steps:
+### 1. High-Density Efficiency (The Spatial Engine)
+* **What it does:** Maximizes Gross Plot Ratio (GPR) and unit yields. Automatically stacks wet walls (bathrooms/kitchens) vertically to minimize plumbing and electrical conduit costs.
+* **Planner Value:** Eliminates manual guess-and-check layout configurations to fit target affordable housing quotas on constrained plots in minutes.
 
-1. **Initialize Git Repository**:
-   Open a terminal inside this directory (`C:\Users\bobo\.gemini\antigravity\scratch\urban-heal-agent`) and execute:
-   ```bash
-   git init
-   git add .
-   git commit -m "feat: init sandbox co-designer prototyper"
-   ```
+### 2. Environmental Performance (The Microclimate Engine)
+* **What it does:** Runs continuous Computational Fluid Dynamics (CFD) wind simulations and solar radiation mapping. Adjusts building angles, heights, and spacing.
+* **Planner Value:** Combats the Urban Heat Island (UHI) effect. Uses staggered wind voids and breathability slots to flush out stagnant corridor odors and introduces sun-facing drying ledges to naturally suppress mold growth.
 
-2. **Create Repository on GitHub**:
-   - Go to your GitHub account and create a new **public** repository named `urban-heal-agent`.
-   - Leave it empty (do NOT check "Initialize this repository with a README" or add a gitignore/license).
+### 3. Adaptability & Logistics (The Industrial Engine)
+* **What it does:** Adapts generative designs to standard PPVC (Prefabricated Prefinished Volumetric Construction) 3D concrete module dimensions.
+* **Planner Value:** Lowers construction labor costs, reduces material waste, and accelerates building timelines by bridging the gap between concept and factory manufacturing.
 
-3. **Add Remote Origin & Push**:
-   Link your local repository and push:
-   ```bash
-   git remote add origin https://github.com/YOUR_GITHUB_USERNAME/urban-heal-agent.git
-   git branch -M main
-   git push -u origin main
-   ```
-   *(Be sure to replace `YOUR_GITHUB_USERNAME` with your actual GitHub username!)*
+### 4. Livability & Social Fabric (The Human Engine)
+* **What it does:** Generates recessed entryway nooks for corridor fire safety, offsets windows to preserve tenant privacy while doors are open for ventilation, and maps precise 5-minute walking radii to green spaces and eldercare zones.
+* **Planner Value:** Guarantees that high-density estates do not feel like "mega-block" prisons, engineering human dignity and social infrastructure directly into the fabric of the architecture.
 
-4. **Enable GitHub Pages**:
-   - Navigate to your repository page on GitHub.
-   - Go to **Settings** > **Pages** (in the left sidebar).
-   - Under **Build and deployment** > **Source**, click the dropdown and change it from *Deploy from a branch* to **GitHub Actions**.
+---
 
-The GitHub Action workflow defined in `.github/workflows/deploy.yml` will automatically trigger, build the project, and publish it. Within 1–2 minutes, your project will be live at:
-`https://YOUR_GITHUB_USERNAME.github.io/urban-heal-agent/`
+## 🧮 Core Objective Function
+
+The AI agent operates on a balanced optimization logic, continuously striving to maximize the following mathematical fitness function:
+
+$$\text{Design Fitness} = w_1(\text{Density}) + w_2(\text{Natural Airflow}) + w_3(\text{Modular Repeatability}) - w_4(\text{Construction Cost})$$
+
+The ultimate value proposition: The agent does not replace the urban planner; it frees them from tedious manual calculation and compliance checking, allowing them to focus entirely on community-building and human-centric design.
+
+---
+
+## 🛠️ Data Infrastructure & Production APIs
+
+Urban Heal connects directly to real-world production data streams to ground its generative simulations:
+
+| Framework Layer | API Source | Data Fed Into Agent |
+| :--- | :--- | :--- |
+| **1. Context Demographics** | URA Data Service & OneMap API (SLA) | Real estate transactions, planning boundaries, baseline neighborhood census figures, and HDB/rental site polygon maps. |
+| **2. H.E.A.L. Structural Analysis** | OneMap 3D Building Tiles API | Actual 3D structural building shapes, exact heights, and block geometry coordinates directly onto the rendering canvas. |
+| **3. Olfactory & Airflow** | MSS (Meteorological Service Singapore) & NEA APIs | Live seasonal wind vectors, ambient outdoor temperatures, and high-humidity spikes to calibrate CFD wind and pressure models. |
+
+---
+
+## 🔄 Operational Workflow
+1. **Define Constraints & Ingest Data (Input):** The planner inputs site boundaries, target unit counts, URA zoning guidelines, and local microclimate datasets (wind paths, solar mapping) into the agent.
+2. **Algorithmic Evolution & Simulation (Processing):** The agent runs thousands of parallel background simulations, tweaking building orientation, staggering block heights, and calculating mechanical/plumbing efficiencies.
+3. **Constraint Filtering & Ranking (Optimization):** Filters out layouts violating building codes or safety regulations, ranking the survivors using a balanced **"Livability vs. Cost"** scoring matrix.
+4. **Interactive Review & Selection (Output):** Presents the planner with the top 3–5 distinct, high-performing 3D blueprints. Planners can make micro-adjustments conversationally (e.g., *"Shift block C to allow more sunlight into the central plaza"*).
+
+---
+
+## 📦 Quick Start
+
+### Installation
+```bash
+git clone [https://github.com/yourusername/urban-heal-ai-agent.git](https://github.com/yourusername/urban-heal-ai-agent.git)
+cd urban-heal-ai-agent
+pip install -r requirements.txt
